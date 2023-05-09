@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+from torchvision import models
 from collections import OrderedDict
 
 class Classifier(nn.Module):
@@ -65,3 +66,50 @@ def train(device, model, train_loader, test_loader, criterion, optimizer, epochs
                     f"Accuracy: {accuracy/len(test_loader):.3f}")
                 running_loss = 0
                 model.train()
+
+def save(save_dir, arch, criterion, optimizer, epochs, learning_rate, hidden_units, model):
+    save_path = f'{save_dir}/{arch}-{criterion._get_name()}-{optimizer.__module__}-epochs-{epochs}.pth'
+
+    torch.save({
+                'arch': arch,
+                'epoch': epochs,
+                'criterion': criterion._get_name(),
+                'optimizer': optimizer.__module__,
+                'learning_rate': learning_rate,
+                'hidden_units': hidden_units,
+                'class_to_index': model.class_to_idx,
+                'classifier_state_dict': model.classifier.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                }, save_path)
+    return save_path
+
+def load(save_path, device):
+    checkpoint = torch.load(save_path, map_location=device)
+    if checkpoint['arch']=='densenet':
+        model = models.densenet121(pretrained=True)
+        in_features = model.classifier.in_features
+    elif checkpoint['arch']=='vgg16':
+        model = models.vgg16(pretrained=True)
+        in_features = model.classifier[0].in_features
+    else:
+        raise ValueError
+    # switch off gradient computation for features
+    for param in model.parameters():
+        param.requires_grad = False
+    num_classes = len(checkpoint['class_to_index'])
+    # instantiate the new classifier
+    model.classifier = Classifier(in_features=in_features, out_features=num_classes)
+    if checkpoint['criterion']=='NLLLoss':
+        criterion = torch.nn.NLLLoss()
+    else:
+        raise ValueError
+    learning_rate = checkpoint['learning_rate']
+    if checkpoint['optimizer']=='torch.optim.adam':
+        optimizer = torch.optim.Adam(model.classifier.parameters(), lr=learning_rate)
+
+    model.classifier.load_state_dict(checkpoint['classifier_state_dict'])
+    model.class_to_idx = checkpoint['class_to_index']
+    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    epoch = checkpoint['epoch']
+
+    return model, optimizer, criterion, learning_rate, epoch

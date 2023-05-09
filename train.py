@@ -7,7 +7,7 @@ import argparse
 import torch
 from torchvision import datasets, transforms, models
 import json
-from model import Classifier, train
+from model import Classifier, train, save, load
 
 parser = argparse.ArgumentParser(description='Train a NN model. \n Usage example: \n \
                                  python train.py --data_dir flowers --save_dir checkpoints --arch vgg16 --learning_rate 0.0008 --gpu cuda')
@@ -80,8 +80,6 @@ train_loader = torch.utils.data.DataLoader(train_data, batch_size=32, shuffle=Tr
 test_loader = torch.utils.data.DataLoader(test_data, batch_size=32)
 valid_loader = torch.utils.data.DataLoader(valid_data, batch_size=32)
 
-
-
 with open('cat_to_name.json', 'r') as f:
     cat_to_name = json.load(f)
 num_classes = len(cat_to_name)
@@ -89,18 +87,18 @@ num_classes = len(cat_to_name)
 if arch == 'vgg16':
     # use VGG with 16 layers as suggested in https://arxiv.org/pdf/1409.1556.pdf
     model = models.vgg16(pretrained=True)
+    # determine the size of the input layer for the classifier part
+    in_features = model.classifier[0].in_features
 elif arch == 'densenet':
     model = models.densenet121(pretrained=True)
+    in_features = model.classifier.in_features
 
 # switch off gradient computation for features
 for param in model.parameters():
     param.requires_grad = False
 
-# determine the size of the input layer for the classifier part
-classifier_in_features_num = model.classifier[0].in_features
-
 # instantiate the new classifier
-classifier = Classifier(in_features=classifier_in_features_num, hidden_units=hidden_units, out_features=num_classes)
+classifier = Classifier(in_features=in_features, hidden_units=hidden_units, out_features=num_classes)
 
 # replace the default classifier with our custom classifier
 model.classifier = classifier
@@ -110,4 +108,11 @@ print(model)
 criterion = torch.nn.NLLLoss()
 optimizer = torch.optim.Adam(model.classifier.parameters(), lr=learning_rate)
 
+print('Starting training')
 train(device, model, train_loader, valid_loader, criterion, optimizer, epochs=epochs, print_every=32)
+
+model.class_to_idx = train_data.class_to_idx
+
+print('Saving model to checkpoint')
+save_path = save(save_dir, arch, criterion, optimizer, epochs, learning_rate, hidden_units, model)
+print(f'Saved model to {save_path}')
