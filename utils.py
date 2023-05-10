@@ -1,5 +1,7 @@
 import torch
 import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('TkAgg')
 import numpy as np
 from PIL import Image
 import json
@@ -88,10 +90,10 @@ def imshow(image, ax=None, title=None):
     
     return ax
 
-def show_probs(img, probs, classes):
+def show_probs(img, probs, classes, cat_to_name_json):
     probs_reversed = probs[::-1]
     classes_reversed = classes[::-1]
-    with open('cat_to_name.json', 'r') as f:
+    with open(cat_to_name_json, 'r') as f:
         cat_to_name = json.load(f)
     categories = []
     for c in classes_reversed:
@@ -109,3 +111,5 @@ def show_probs(img, probs, classes):
     ax2.set_xlim(0, 1.1)
 
     plt.tight_layout
+    plt.savefig('matplotlib.png')
+    plt.show()

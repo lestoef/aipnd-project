@@ -8,6 +8,12 @@ parser.add_argument('--sample_path', type=str, default='flowers/test/4/image_056
                     help='path to the sample')
 parser.add_argument('--checkpoint_path', type=str, default='checkpoints/vgg16-NLLLoss-torch.optim.adam-epochs-3.pth',
                     help='path to the checkpoint')
+parser.add_argument('--top_k', type=int, default=5,
+                    help='top k probabilities')
+parser.add_argument('--category_names', type=str, default='cat_to_name.json',
+                    help='.json file containing categories and associated names')
+parser.add_argument('--gpu',
+                    help='toggle gpu')
 
 args = parser.parse_args()
 
@@ -17,13 +23,19 @@ print(f'sample_path: {sample_path}')
 checkpoint_path = args.checkpoint_path
 print(f'checkpoint_path: {checkpoint_path}')
 
-device = 'cpu'
+top_k = args.top_k
+category_names = args.category_names
+
+if args.gpu:
+    device = 'cuda'
+else:
+    device = 'cpu'
 
 model, optimizer, criterion, learning_rate, epoch = load(checkpoint_path, device)
 
-probs, classes = predict(sample_path, model)
+probs, classes = predict(sample_path, model, top_k)
 print(probs)
 print(classes)
 
 img = process_image(sample_path)
-show_probs(img, probs, classes)
+show_probs(img, probs, classes, cat_to_name_json=category_names)
